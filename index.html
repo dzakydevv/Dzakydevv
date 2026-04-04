@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2D Shooting Game</title>
+
+<style>
+body{
+  margin:0;
+  overflow:hidden;
+  background:linear-gradient(to bottom,#4da6ff 70%,#4caf50 30%);
+}
+
+canvas{
+  display:block;
+  width:100vw;
+  height:100vh;
+}
+
+#score{
+  position:absolute;
+  top:20px;
+  left:20px;
+  color:#fff;
+  font-size:24px;
+}
+
+.controls{
+  position:absolute;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  gap:15px;
+}
+
+.btn{
+  width:80px;
+  height:60px;
+  font-size:20px;
+  border:none;
+  border-radius:10px;
+  background:#555;
+  color:#fff;
+}
+.btn:active{ background:#888; }
+</style>
+</head>
+
+<body>
+
+<div id="score">Score: 0</div>
+
+<div class="controls">
+  <button class="btn" id="leftBtn">LEFT</button>
+  <button class="btn" id="fireBtn">FIRE</button>
+  <button class="btn" id="rightBtn">RIGHT</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreText = document.getElementById('score');
+
+// ✅ FIX tombol (biar gak putih)
+const leftBtn = document.getElementById('leftBtn');
+const rightBtn = document.getElementById('rightBtn');
+const fireBtn = document.getElementById('fireBtn');
+
+// 🔊 SFX GitHub
+const shootSound = new Audio("https://raw.githubusercontent.com/jshawl/Audio-FX/master/audio/laser1.ogg");
+
+// aktifkan audio HP
+document.addEventListener("touchstart", ()=>{
+  shootSound.play().then(()=>shootSound.pause()).catch(()=>{});
+}, {once:true});
+
+function resizeCanvas(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight - 100;
+}
+resizeCanvas();
+
+window.addEventListener('resize', ()=>{
+  resizeCanvas();
+  player.y = canvas.height - 100;
+  player.x = canvas.width/2 - player.width/2;
+});
+
+let score = 0;
+
+const player = {
+  x:0, y:0,
+  width:40, height:20,
+  speed:6,
+  health:10,
+  maxHealth:10
+};
+
+const bullets = [];
+const enemies = [];
+
+let left=false, right=false;
+
+function initPlayer(){
+  player.x = canvas.width/2 - player.width/2;
+  player.y = canvas.height - 100;
+}
+initPlayer();
+
+// keyboard
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft') left=true;
+  if(e.key==='ArrowRight') right=true;
+  if(e.key===' ') shoot();
+});
+
+document.addEventListener('keyup', e=>{
+  if(e.key==='ArrowLeft') left=false;
+  if(e.key==='ArrowRight') right=false;
+});
+
+// tombol HP
+function setupBtn(btn,onStart,onEnd){
+  btn.addEventListener('touchstart', e=>{
+    e.preventDefault();
+    onStart();
+  });
+  btn.addEventListener('touchend', e=>{
+    e.preventDefault();
+    onEnd();
+  });
+}
+
+setupBtn(leftBtn, ()=>left=true, ()=>left=false);
+setupBtn(rightBtn, ()=>right=true, ()=>right=false);
+setupBtn(fireBtn, shoot, ()=>{});
+
+// 🔫 tembak + SFX
+function shoot(){
+  bullets.push({
+    x:player.x + player.width/2,
+    y:player.y,
+    radius:5
+  });
+
+  const sfx = shootSound.cloneNode();
+  sfx.play().catch(()=>{});
+}
+
+// musuh
+function spawnEnemy(){
+  const x = Math.random()*(canvas.width-40);
+  enemies.push({
+    x:x,
+    y:0,
+    width:40,
+    height:20,
+    speed:2,
+    health:3,
+    maxHealth:3
+  });
+}
+setInterval(spawnEnemy,1000);
+
+// update
+function update(){
+  if(left && player.x>0) player.x -= player.speed;
+  if(right && player.x<canvas.width-player.width) player.x += player.speed;
+
+  bullets.forEach((b,i)=>{
+    b.y -= 6;
+    if(b.y < -b.radius) bullets.splice(i,1);
+  });
+
+  enemies.forEach((e,i)=>{
+    e.y += e.speed;
+
+    bullets.forEach((b,j)=>{
+      if(
+        b.x > e.x &&
+        b.x < e.x + e.width &&
+        b.y > e.y &&
+        b.y < e.y + e.height
+      ){
+        bullets.splice(j,1);
+        e.health--;
+
+        if(e.health<=0){
+          enemies.splice(i,1);
+          score++;
+        }
+      }
+    });
+
+    if(
+      e.x<player.x+player.width &&
+      e.x+e.width>player.x &&
+      e.y<player.y+player.height &&
+      e.y+e.height>player.y
+    ){
+      player.health--;
+      enemies.splice(i,1);
+
+      if(player.health<=0){
+        alert("Game Over! Score: "+score);
+        location.reload();
+      }
+    }
+  });
+}
+
+// draw
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle="#4da6ff";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle="#4caf50";
+  ctx.fillRect(0,canvas.height*0.75,canvas.width,canvas.height*0.25);
+
+  // 🌱 rumput
+  for(let i = 0; i < canvas.width; i += 15){
+    let tinggi = 10 + Math.sin(i * 0.1 + Date.now() * 0.005) * 5;
+
+    ctx.strokeStyle = "#2e7d32";
+    ctx.lineWidth = 4;
+
+    ctx.beginPath();
+    ctx.moveTo(i, canvas.height * 0.75);
+    ctx.lineTo(i, canvas.height * 0.75 - tinggi);
+    ctx.stroke();
+  }
+
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  ctx.font="30px Arial";
+
+  ctx.fillStyle="white";
+  ctx.fillText("🤠", player.x+player.width/2, player.y);
+
+  ctx.fillStyle="red";
+  ctx.fillRect(20,50,200*(player.health/player.maxHealth),15);
+  ctx.strokeStyle="white";
+  ctx.strokeRect(20,50,200,15);
+
+  bullets.forEach(b=>{
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.radius, 0, Math.PI*2);
+    ctx.fillStyle="white";
+    ctx.fill();
+  });
+
+  enemies.forEach(e=>{
+    ctx.fillStyle="white";
+    ctx.fillText("🤓", e.x+e.width/2, e.y);
+
+    ctx.fillStyle="red";
+    ctx.fillRect(e.x, e.y - 25, e.width*(e.health/e.maxHealth),5);
+  });
+}
+
+// loop
+function loop(){
+  update();
+  draw();
+  scoreText.textContent = "Score: "+score;
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+
+</body>
+</html>
